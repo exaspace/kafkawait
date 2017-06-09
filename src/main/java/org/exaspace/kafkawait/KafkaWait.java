@@ -14,22 +14,22 @@ public class KafkaWait<K,V,T> {
     private final Map<T, Long> timestamps = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public KafkaWait(IdExtractor<K,V,T> idExtractor, Duration maxWait) {
+    public KafkaWait(final IdExtractor<K,V,T> idExtractor, final Duration maxWait) {
         this.idExtractor = idExtractor;
         this.maxWait = maxWait;
         scheduler.scheduleWithFixedDelay(this::cleanup, maxWait.toMillis(), maxWait.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    public Future<ConsumerRecord<K,V>> waitFor(T id) {
-        CompletableFuture<ConsumerRecord<K,V>> f = new CompletableFuture<>();
+    public Future<ConsumerRecord<K,V>> waitFor(final T id) {
+        final CompletableFuture<ConsumerRecord<K,V>> f = new CompletableFuture<>();
         cache.put(id, f);
         timestamps.put(id, System.currentTimeMillis());
         return f;
     }
 
-    public void onMessage(ConsumerRecord<K,V> r) {
-        T id = this.idExtractor.extractId(r);
-        CompletableFuture<ConsumerRecord<K,V>> f = cache.get(id);
+    public void onMessage(final ConsumerRecord<K,V> r) {
+        final T id = this.idExtractor.extractId(r);
+        final CompletableFuture<ConsumerRecord<K,V>> f = cache.get(id);
         if (f != null) {
             remove(id);
             f.complete(r);
@@ -41,12 +41,12 @@ public class KafkaWait<K,V,T> {
     }
 
     private void cleanup() {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<T, Long> e : timestamps.entrySet()) {
-            long expiryTime = e.getValue() + maxWait.toMillis();
+        final long now = System.currentTimeMillis();
+        for (final Map.Entry<T, Long> e : timestamps.entrySet()) {
+            final long expiryTime = e.getValue() + maxWait.toMillis();
             if (expiryTime <= now) {
-                T id = e.getKey();
-                CompletableFuture<ConsumerRecord<K,V>> record = cache.get(id);
+                final T id = e.getKey();
+                final CompletableFuture<ConsumerRecord<K,V>> record = cache.get(id);
                 if (record != null)
                     record.completeExceptionally(new TimeoutException());
                 remove(id);
@@ -54,7 +54,7 @@ public class KafkaWait<K,V,T> {
         }
     }
 
-    private void remove(T id) {
+    private void remove(final T id) {
         cache.remove(id);
         timestamps.remove(id);
     }
