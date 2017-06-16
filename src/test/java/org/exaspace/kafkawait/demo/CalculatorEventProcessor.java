@@ -6,6 +6,8 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,7 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 
-import static org.exaspace.kafkawait.demo.ApplicationConfig.*;
+import static org.exaspace.kafkawait.demo.CalculatorConfig.*;
 
 /**
  * Event driven component which implements "business logic" of a calculator.
@@ -25,6 +27,7 @@ import static org.exaspace.kafkawait.demo.ApplicationConfig.*;
  *
  */
 public class CalculatorEventProcessor {
+    private static final Logger LOG = LoggerFactory.getLogger(CalculatorEventProcessor.class);
 
     private final KafkaConsumer<String, String> consumer;
     private final KafkaProducer<String, String> producer;
@@ -36,7 +39,7 @@ public class CalculatorEventProcessor {
 
     public void run() {
 
-        log("starting event processor");
+        LOG.info("starting event processor");
 
         consumer.subscribe(Arrays.asList(KAFKA_REQUEST_TOPIC));
 
@@ -71,7 +74,7 @@ public class CalculatorEventProcessor {
             ProducerRecord<String, String> pr = new ProducerRecord<>(KAFKA_RESPONSE_TOPIC, message);
             producer.send(pr).get(100, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
-            log("error sending response to kafka: " + e.getMessage());
+            LOG.info("error sending response to kafka: " + e.getMessage());
         }
     }
 
@@ -88,10 +91,6 @@ public class CalculatorEventProcessor {
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
         producerProps.put(ProducerConfig.ACKS_CONFIG, "1");
         return new KafkaProducer<>(producerProps, new StringSerializer(), new StringSerializer());
-    }
-
-    private void log(String s) {
-        System.out.println("[PROC] " + System.currentTimeMillis() + " thread=" + Thread.currentThread().getId() + " " + s);
     }
 
     public static void main(String[] args) throws Exception {

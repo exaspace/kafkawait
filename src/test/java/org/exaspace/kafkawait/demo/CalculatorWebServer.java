@@ -1,18 +1,14 @@
 package org.exaspace.kafkawait.demo;
 
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
-import org.exaspace.kafkawait.KafkaWait;
+import org.exaspace.kafkawait.KafkaWaitService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -22,35 +18,42 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.exaspace.kafkawait.demo.ApplicationConfig.*;
+import static org.exaspace.kafkawait.demo.CalculatorConfig.*;
 
 public class CalculatorWebServer {
+    private static final Logger LOG = LoggerFactory.getLogger(CalculatorWebServer.class);
 
-    private static final Duration WAIT_TIME = Duration.ofSeconds(1);
+    private static final Duration MAX_WAIT_TIME = Duration.ofSeconds(1);
 
-    private final KafkaProducer<String, String> producer;
-    private final KafkaConsumer<String, String> consumer;
-    private final KafkaWait<String, String, Long> kafkaWait;
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    private final AtomicLong requestNumber;
+    private final AtomicLong requestId;
+    private final KafkaWaitService<String, String, String, String, Long> kafkaWaitService;
 
     public CalculatorWebServer() {
-        producer = newKafkaProducer();
-        consumer = newKafkaConsumer();
-        kafkaWait = new KafkaWait<>((r) -> extractIdFromJsonMessage(r.value()), WAIT_TIME);
-        executorService.submit(this::listenForKafkaResponses);
-        this.requestNumber = new AtomicLong(0);
+        this.requestId = new AtomicLong(0);
+        kafkaWaitService = new KafkaWaitService<>(
+                KAFKA_BOOTSTRAP_SERVER,
+                KAFKA_REQUEST_TOPIC,
+                KAFKA_RESPONSE_TOPIC,
+                this::extractIdFromMessage,
+                MAX_WAIT_TIME,
+                new StringSerializer(),
+                new StringSerializer(),
+                new HashMap<>(),
+                new StringDeserializer(),
+                new StringDeserializer(),
+                new HashMap<>()
+        );
     }
 
     public void run() throws Exception {
         Server server = new Server(HTTP_LISTEN_PORT);
         server.setHandler(new JettyRequestHandler());
         server.start();
-        System.out.println("Started jetty web server on port " + HTTP_LISTEN_PORT);
+        LOG.info("Started jetty web server on port " + HTTP_LISTEN_PORT);
         server.join();
     }
 
@@ -72,7 +75,7 @@ public class CalculatorWebServer {
         }
 
         private Map<String, String> parseQueryString(String query) {
-            Map<String, String> result = new HashMap<String, String>();
+            Map<String, String> result = new HashMap<>();
             if (query != null) {
                 for (String param : query.split("&")) {
                     String pair[] = param.split("=");
@@ -88,11 +91,21 @@ public class CalculatorWebServer {
 
     }
 
+    /*
+     * Extract the ID from the Kafka response message - in the demo app case, we parse
+     * the message and extract its messageId field.
+     */
+    private Long extractIdFromMessage(ConsumerRecord<String, String> consumerRecord) {
+        String jsonMessage = consumerRecord.value();
+        CalculatorMessage msg = CalculatorMessage.fromJson(jsonMessage);
+        return msg.messageId;
+    }
+
     private String handleWebRequest(String requestUri, Map<String, String> queryParams) {
 
-        Long id = requestNumber.incrementAndGet();
+        Long id = requestId.incrementAndGet();
 
-        log("" + id + " " + requestUri);
+        LOG.info("{} {}", id, requestUri);
 
         Integer x = Integer.parseInt(queryParams.get("x"));
         Integer y = Integer.parseInt(queryParams.get("y"));
@@ -102,60 +115,22 @@ public class CalculatorWebServer {
         cm.operation = "multiply";
         cm.args = Arrays.asList(x, y);
 
-        Future<ConsumerRecord<String, String>> responseFuture = sendRequestMessageToKafka(id, cm.toJson());
+        /*
+         * Process this request via Kafka events.
+         */
+        Future<ConsumerRecord<String, String>> responseFuture = kafkaWaitService.processRequest(id, cm.toJson());
 
         try {
+            /*
+             * We can safely block on the returned future without setting a timeout as KafkaWait
+             * will timeout the future for us after the
+             */
             String responseString = responseFuture.get().value();
             return CalculatorMessage.fromJson(responseString).result.toString() + "\n";
         } catch (Exception e) {
             if (e.getCause() instanceof TimeoutException) return "timeout - maybe event processor not running!\n";
             else return e.getMessage();
         }
-    }
-
-    private Long extractIdFromJsonMessage(String jsonInput) {
-        CalculatorMessage msg = CalculatorMessage.fromJson(jsonInput);
-        return msg.messageId;
-    }
-
-    private void listenForKafkaResponses() {
-        consumer.subscribe(Arrays.asList(KAFKA_RESPONSE_TOPIC));
-        while (true) {
-            ConsumerRecords<String, String> recs = consumer.poll(10000);
-            for (ConsumerRecord<String, String> record : recs.records(KAFKA_RESPONSE_TOPIC)) {
-                kafkaWait.onMessage(record);
-            }
-        }
-    }
-
-    private Future<ConsumerRecord<String, String>> sendRequestMessageToKafka(Long id, String requestMessage) {
-        Future<ConsumerRecord<String, String>> res = kafkaWait.waitFor(id);
-        try {
-            producer.send(new ProducerRecord<String, String>(KAFKA_REQUEST_TOPIC, requestMessage))
-                    .get(100, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            log(e.getMessage());
-        }
-        return res;
-    }
-
-    private KafkaProducer<String, String> newKafkaProducer() {
-        Map<String, Object> producerProps = new HashMap<>();
-        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
-        producerProps.put(ProducerConfig.ACKS_CONFIG, "1");
-        return new KafkaProducer<>(producerProps, new StringSerializer(), new StringSerializer());
-    }
-
-    private KafkaConsumer<String, String> newKafkaConsumer() {
-        Map<String, Object> consumerProps = new HashMap<>();
-        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
-        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
-        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-        return new KafkaConsumer<>(consumerProps, new StringDeserializer(), new StringDeserializer());
-    }
-
-    private void log(String s) {
-        System.out.println("[HTTP] " + System.currentTimeMillis() + " thread=" + Thread.currentThread().getId() + " " + s);
     }
 
     public static void main(String[] args) throws Exception {

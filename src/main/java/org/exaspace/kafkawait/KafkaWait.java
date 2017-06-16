@@ -7,10 +7,22 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
- * KafkaWait maintains an auto-expiring memory cache of message IDs (passed in the waitFor function) that are
- * later matched to IDs extracted from ConsumerRecords passed in the onMessage function.
- * The client receives a future which will contain any matching ConsumerRecord that has been passed to onMessage
- * within the timeout. If the timeout is exceeded, the future will be failed with a TimeoutException.
+ * KafkaWait is used to wait for individual Kafka messages that are identified by a user defined "ID"
+ * (this ID can be anything - the user simply supplies a function to extract an ID of type T given
+ * a Kafka message). If a message with matching ID arrives within the specified timeout, the returned
+ * Future will be completed with the message, else completed with a timeout exception.
+ *
+ * Clients notify KafkaWait of incoming messages by calling the onMessage function. That is, clients can
+ * perform the Kafka message consumption however they like (and can consume from multiple topics if they like),
+ * as long as they pass each received ConsumerRecord into the onMessage() function.
+ *
+ * Correct usage of this class thus consists of two steps (i) setting up a Kafka consumer for whatever topics the client
+ * wishes to wait for messages on, calling onMessage(record) for each received message (ii) calling waitFor(id). Usually
+ * these calls will be made from different threads.
+ *
+ * KafkaWait is implemented using a cache of message IDs with timestamps. These IDs are
+ * matched to IDs extracted from ConsumerRecords as they arrive. A single scheduled task is used to
+ * evict expired cache entries.
  *
  * @param <K> Key type for the Kafka ConsumerRecord
  * @param <V> Value type for the Kafka ConsumerRecord
@@ -46,6 +58,14 @@ public class KafkaWait<K,V,T> {
         }
     }
 
+    public void fail(final T id, final Exception e) {
+        final CompletableFuture<ConsumerRecord<K,V>> f = cache.get(id);
+        if (f != null) {
+            f.completeExceptionally(e);
+            remove(id);
+        }
+    }
+
     public int size() {
         return cache.size();
     }
@@ -56,9 +76,9 @@ public class KafkaWait<K,V,T> {
             final long expiryTime = e.getValue() + maxWait.toMillis();
             if (expiryTime <= now) {
                 final T id = e.getKey();
-                final CompletableFuture<ConsumerRecord<K,V>> record = cache.get(id);
-                if (record != null)
-                    record.completeExceptionally(new TimeoutException());
+                final CompletableFuture<ConsumerRecord<K,V>> future = cache.get(id);
+                if (future != null)
+                    future.completeExceptionally(new TimeoutException());
                 remove(id);
             }
         }
