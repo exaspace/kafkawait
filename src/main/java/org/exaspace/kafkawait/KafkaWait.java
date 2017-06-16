@@ -6,6 +6,16 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.*;
 
+/**
+ * KafkaWait maintains an auto-expiring memory cache of message IDs (passed in the waitFor function) that are
+ * later matched to IDs extracted from ConsumerRecords passed in the onMessage function.
+ * The client receives a future which will contain any matching ConsumerRecord that has been passed to onMessage
+ * within the timeout. If the timeout is exceeded, the future will be failed with a TimeoutException.
+ *
+ * @param <K> Key type for the Kafka ConsumerRecord
+ * @param <V> Value type for the Kafka ConsumerRecord
+ * @param <T> Type of the ID to be extracted from the ConsumerRecord
+ */
 public class KafkaWait<K,V,T> {
 
     private final IdExtractor<K, V, T> idExtractor;
@@ -14,10 +24,10 @@ public class KafkaWait<K,V,T> {
     private final Map<T, Long> timestamps = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public KafkaWait(final IdExtractor<K,V,T> idExtractor, final Duration maxWait) {
+    public KafkaWait(final IdExtractor<K,V,T> idExtractor, final Duration timeout) {
         this.idExtractor = idExtractor;
-        this.maxWait = maxWait;
-        scheduler.scheduleWithFixedDelay(this::cleanup, maxWait.toMillis(), maxWait.toMillis(), TimeUnit.MILLISECONDS);
+        this.maxWait = timeout;
+        scheduler.scheduleWithFixedDelay(this::cleanup, timeout.toMillis(), timeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public Future<ConsumerRecord<K,V>> waitFor(final T id) {
@@ -27,12 +37,12 @@ public class KafkaWait<K,V,T> {
         return f;
     }
 
-    public void onMessage(final ConsumerRecord<K,V> r) {
-        final T id = this.idExtractor.extractId(r);
+    public void onMessage(final ConsumerRecord<K,V> record) {
+        final T id = this.idExtractor.extractId(record);
         final CompletableFuture<ConsumerRecord<K,V>> f = cache.get(id);
         if (f != null) {
             remove(id);
-            f.complete(r);
+            f.complete(record);
         }
     }
 

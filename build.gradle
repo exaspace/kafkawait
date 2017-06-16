@@ -14,12 +14,11 @@ sourceCompatibility = 1.8
 
 dependencies {
     compile 'org.apache.kafka:kafka-clients:0.10.2.1'
-    testCompile 'junit:junit:4.12'
-}
 
-task demo(type:JavaExec) {
-    main = "org.exaspace.kafkawait.demo.Demo"
-    classpath = sourceSets.test.runtimeClasspath
+    testCompile 'junit:junit:4.12'
+    testCompile 'io.netty:netty-all:4.1.12.Final'
+    testCompile 'org.eclipse.jetty:jetty-server:9.4.6.v20170531'
+    testCompile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
 }
 
 task testJar(type: Jar) {
@@ -44,4 +43,18 @@ task wrapper(type: Wrapper) {
     gradleVersion = '3.5'
 }
 
+task demo(type:JavaExec) {
+    main = "org.exaspace.kafkawait.demo.Demo"
+    classpath = sourceSets.test.runtimeClasspath
+}
+
+task jetty(type: JavaExec) {
+    main = "org.exaspace.kafkawait.demo.JettyHelloWorld"
+    classpath = sourceSets.test.runtimeClasspath
+}
+
+task netty(type: JavaExec) {
+    main = "org.exaspace.kafkawait.demo.NettyHelloWorld"
+    classpath = sourceSets.test.runtimeClasspath
+}
 
