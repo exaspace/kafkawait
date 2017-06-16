@@ -14,6 +14,9 @@ sourceCompatibility = 1.8
 
 dependencies {
     compile 'org.apache.kafka:kafka-clients:0.10.2.1'
+    compile 'org.slf4j:slf4j-api:1.7.25'
+
+    runtime 'ch.qos.logback:logback-classic:1.2.3'
 
     testCompile 'junit:junit:4.12'
     testCompile 'io.netty:netty-all:4.1.12.Final'
@@ -43,18 +46,13 @@ task wrapper(type: Wrapper) {
     gradleVersion = '3.5'
 }
 
-task demo(type:JavaExec) {
-    main = "org.exaspace.kafkawait.demo.Demo"
+task runDemoWebServer(type:JavaExec) {
+    main = "org.exaspace.kafkawait.demo.CalculatorWebServer"
     classpath = sourceSets.test.runtimeClasspath
 }
 
-task jetty(type: JavaExec) {
-    main = "org.exaspace.kafkawait.demo.JettyHelloWorld"
-    classpath = sourceSets.test.runtimeClasspath
-}
-
-task netty(type: JavaExec) {
-    main = "org.exaspace.kafkawait.demo.NettyHelloWorld"
+task runDemoEventProcessor(type: JavaExec) {
+    main = "org.exaspace.kafkawait.demo.CalculatorEventProcessor"
     classpath = sourceSets.test.runtimeClasspath
 }
 
