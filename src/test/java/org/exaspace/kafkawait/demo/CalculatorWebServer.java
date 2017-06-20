@@ -92,8 +92,7 @@ public class CalculatorWebServer {
     }
 
     /*
-     * Extract the ID from the Kafka response message - in the demo app case, we parse
-     * the message and extract its messageId field.
+     * The IdExtractor for our demo application parses out the request ID from the message body
      */
     private Long extractIdFromMessage(ConsumerRecord<String, String> consumerRecord) {
         String jsonMessage = consumerRecord.value();
@@ -116,14 +115,14 @@ public class CalculatorWebServer {
         cm.args = Arrays.asList(x, y);
 
         /*
-         * Process this request via Kafka events.
+         * Submit this web request for processing in our Kafka based back end service.
          */
         Future<ConsumerRecord<String, String>> responseFuture = kafkaWaitService.processRequest(id, cm.toJson());
 
         try {
             /*
-             * We can safely block on the returned future without setting a timeout as KafkaWait
-             * will timeout the future for us after the
+             * We can safely block on the returned future without passing an explicit timeout here as KafkaWait
+             * will fail this future automatically for us after the timeout we passed to the KafkaWait constructor
              */
             String responseString = responseFuture.get().value();
             return CalculatorMessage.fromJson(responseString).result.toString() + "\n";
