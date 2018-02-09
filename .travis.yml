@@ -5,10 +5,6 @@ sudo: false
 jdk:
   - oraclejdk8
 
-branches:
-  only:
-    - master
-
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
   - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
