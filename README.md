@@ -1,5 +1,7 @@
 # KafkaWait
 
+[![Build Status](https://travis-ci.org/exaspace/kafkawait.svg?branch=master)](https://travis-ci.org/exaspace/kafkawait)
+
 Simple Java library to overlay synchronous request-response behaviour on top of Kafka for applications that must wait for a "response" message to
 arrive on one or more Kafka topics before doing something.
 One common use case is providing an HTTP service at the boundary of an event driven Kafka architecture
