@@ -55,7 +55,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     private int consumerPollTimeoutMillis = 10000;
 
     // How long to wait for producer send() response
-    private int producerSendTimeoutMillis = 100;
+    private int producerSendTimeoutMillis = 200;
 
     public KafkaWaitService(String bootstrapServers,
                             String requestTopic,

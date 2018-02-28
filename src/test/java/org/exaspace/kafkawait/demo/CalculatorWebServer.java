@@ -10,7 +10,6 @@ import org.exaspace.kafkawait.KafkaWaitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -23,6 +22,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.exaspace.kafkawait.demo.CalculatorConfig.*;
+
 
 public class CalculatorWebServer {
     private static final Logger LOG = LoggerFactory.getLogger(CalculatorWebServer.class);
@@ -63,7 +63,7 @@ public class CalculatorWebServer {
         public void handle(String target,
                            Request baseRequest,
                            HttpServletRequest req,
-                           HttpServletResponse res) throws IOException, ServletException {
+                           HttpServletResponse res) throws IOException {
             res.setContentType("text/plain");
             res.setStatus(HttpServletResponse.SC_OK);
             if ("/multiply".equals(target)) {
@@ -104,8 +104,6 @@ public class CalculatorWebServer {
 
         Long id = requestId.incrementAndGet();
 
-        LOG.info("{} {}", id, requestUri);
-
         Integer x = Integer.parseInt(queryParams.get("x"));
         Integer y = Integer.parseInt(queryParams.get("y"));
 
@@ -113,11 +111,14 @@ public class CalculatorWebServer {
         cm.messageId = id;
         cm.operation = "multiply";
         cm.args = Arrays.asList(x, y);
+        String requestJson = cm.toJson();
+
+        LOG.info("uri={} id={} request={}", requestUri, id, requestJson);
 
         /*
          * Submit this web request for processing in our Kafka based back end service.
          */
-        Future<ConsumerRecord<String, String>> responseFuture = kafkaWaitService.processRequest(id, cm.toJson());
+        Future<ConsumerRecord<String, String>> responseFuture = kafkaWaitService.processRequest(id, requestJson);
 
         try {
             /*
