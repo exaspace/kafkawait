@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'pl.allegro.tech.build.axion-release' version '1.8.3'
+    id 'com.github.johnrengelman.shadow' version '2.0.2'
 }
 
 description = 'Kafka Wait'
@@ -10,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    compile 'org.apache.kafka:kafka-clients:0.10.2.1'
+    compile 'org.apache.kafka:kafka-clients:1.0.0'
     compile 'org.slf4j:slf4j-api:1.7.25'
 
     runtime 'ch.qos.logback:logback-classic:1.2.3'
@@ -53,9 +54,12 @@ tasks.withType(Test) {
     }
 }
 
-task testJar(type: Jar) {
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+task testJar(type: ShadowJar) {
     classifier = 'tests'
     from sourceSets.test.output
+    configurations = [project.configurations.testRuntime]
 }
 
 task wrapper(type: Wrapper) {
