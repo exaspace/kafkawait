@@ -2,10 +2,11 @@
 
 [![Build Status](https://travis-ci.org/exaspace/kafkawait.svg?branch=master)](https://travis-ci.org/exaspace/kafkawait)
 
-Simple Java library to overlay synchronous request-response behaviour on top of Kafka for applications that must wait for a "response" message to
-arrive on one or more Kafka topics before doing something.
-One common use case is providing an HTTP service at the boundary of an event driven Kafka architecture
-(i.e. your HTTP request triggers asynchronous event processing in Kafka and you need to wait for the ultimate
+Tiny Java library to provide synchronous request-response behaviour on top of Kafka for applications that must 
+publish a Kafka "request" message and then await a Kafka "response" message.
+
+A common use case for this is providing an HTTP service at the boundary of an event driven Kafka architecture
+(i.e. an HTTP request triggers asynchronous event processing mediated via Kafka and you need to wait for the ultimate
 result of this computation to arrive on some "response" Kafka topic, using this data to complete the HTTP response).
 
 
@@ -20,29 +21,30 @@ If you want a high level abstraction, use the `KafkaWaitService` class which han
 
 ## Usage (low level API):
 
-* create a `KafkaWait` instance giving an `IdExtractor` (this is where you extract some form of ID from your messages that can be used for matching requests to responses)
-and your desired timeout value
-* create your KafkaConsumer (however you like) and configure it to call `kafkaWait.onMessage` on every record it receives (you'll likely start a thread for this task)
+* create a `KafkaWait` instance giving an `IdExtractor` (this is where you extract some form of ID from your messages 
+that can be used for matching requests to responses) and your desired timeout value
+* create your KafkaConsumer (however you like) and configure it to call `kafkaWait.onMessage` on every record it receives 
+    (you'll likely start a thread for this task)
 * every time you publish a Kafka "request" event that you expect to eventually receive a matching response event for, call `kafkawait.waitFor(id)`
-* this returns you a future which you can block on when you are ready to wait (the future will be timed out after your configured timeout if no message is received)
+* this returns you a future which you can block on when you are ready to wait (the future will be timed out after your 
+    configured timeout if no message is received)
 
 
 ## Demo
 
-The test source tree contains a simple Calculator demo (to run this you will need a Kafka running on localhost
-with two topics created: one called "requests" and one called "responses").
+The test source tree contains a simple demo Calculator application made up of two services:
 
-Start the Calculator back end service (receives input via Kafka events and outputs each answer as a Kafka event)
+* a front end web service (CalculatorWebServer)
+* a back end service (CalculatorEventProcessor)
 
-```
-$ ./gradlew runDemoEventProcessor
-```
+To run the demo
 
-Now start a Web Server as the HTTP API layer on top of our awesome back end service:
+    ./gradlew clean jar testJar
+    docker-compose up -d
 
-```
-$ ./gradlew runDemoWebServer
-```
+(If you don't have docker, you'll need to have a Kafka server running, and then you can start the demo services 
+with `./gradlew runDemoEventProcessor` and `./gradlew runDemoWebServer`. If your Kafka is running somewhere other than
+localhost, you can set the host name using system property KAFKA_HOST)
 
 Test it out (you should see 42 returned in the HTTP body)
 
@@ -50,9 +52,13 @@ Test it out (you should see 42 returned in the HTTP body)
 curl 'localhost:8000/multiply?x=7&y=6'
 ```
 
-You will see kafka messages on the requests and responses topics. The Calculator web server simply increments a global
-request counter to allocate each HTTP request a unique request ID, and this ID is passed in the JSON
-request & response Kafka messages.
+In separate terminal windows, you can inspect the messages arriving on the Kafka topics:
+
+    kafkacat -C -b localhost:9092 -t requests 
+    kafkacat -C -b localhost:9092 -t responses 
+ 
+The Calculator web server simply increments a global request counter to allocate each HTTP request a unique request ID,
+and this ID is passed in the JSON request & response Kafka messages.
 
 The performance of the demo is around 700 messages per second on a MacBook Air.
 
@@ -60,7 +66,7 @@ If you stop the event processor but leave the web server running, you'll see HTT
 1 second KafkaWait timeout.
 
 
-## Synchronous request-response interactions on top of Kafka
+## General notes on synchronous request-response interactions on top of Kafka
 
 First question if there is another way to do what you want: the asynchronous nature of event processing is part of its attraction and layering
  synchronous behaviour on top should usually be avoided if possible. e.g. if you are building a REST API you may be able to model your API to take account of asynchronous

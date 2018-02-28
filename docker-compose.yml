@@ -1,0 +1,36 @@
+version: '2'
+services:
+
+  webserver:
+    depends_on:
+      - kafka
+    build: .
+    ports:
+      - "8000:8000"
+    command: >
+      /run_class.sh -DKAFKA_HOST=kafka org.exaspace.kafkawait.demo.CalculatorWebServer
+
+  calculator:
+    depends_on:
+      - kafka
+    build: .
+    environment:
+      KAFKA_HOST: kafka
+    command: >
+      /run_class.sh -DKAFKA_HOST=kafka org.exaspace.kafkawait.demo.CalculatorEventProcessor
+
+  kafka:
+    depends_on:
+      - zookeeper
+    image: wurstmeister/kafka:1.0.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_CREATE_TOPICS: "requests:1:1,responses:1:1"
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
