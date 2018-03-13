@@ -1,12 +1,14 @@
 package org.exaspace.kafkawait.demo;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 
 import java.io.IOException;
 import java.util.List;
 
+
 public class CalculatorMessage {
+
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     public Long messageId;
     public String operation;
@@ -29,7 +31,5 @@ public class CalculatorMessage {
             throw new RuntimeException(e);
         }
     }
-
-    private static final ObjectMapper mapper = new ObjectMapper();
 
 }

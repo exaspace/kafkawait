@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     id 'java'
     id 'pl.allegro.tech.build.axion-release' version '1.8.3'
@@ -10,6 +12,22 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    performanceTest {
+        java {
+            compileClasspath += main.output + test.output
+            runtimeClasspath += main.output + test.output
+            srcDir file('src/performance-test/java')
+        }
+        resources.srcDir file('src/performance-test/resources')
+    }
+}
+
+configurations {
+    performanceTestCompile.extendsFrom testCompile
+    performanceTestRuntime.extendsFrom testRuntime
+}
+
 dependencies {
     compile 'org.apache.kafka:kafka-clients:1.0.0'
     compile 'org.slf4j:slf4j-api:1.7.25'
@@ -17,8 +35,12 @@ dependencies {
     runtime 'ch.qos.logback:logback-classic:1.2.3'
 
     testCompile 'junit:junit:4.12'
+    testCompile 'org.hamcrest:hamcrest-all:1.3'
+    testCompile 'com.github.charithe:kafka-junit:4.1.0'
     testCompile 'org.eclipse.jetty:jetty-server:9.4.6.v20170531'
     testCompile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
+    testCompile 'org.apache.httpcomponents:httpasyncclient:4.1.3'
+
 }
 
 scmVersion {
@@ -52,9 +74,8 @@ tasks.withType(Test) {
         events "started", "skipped", "passed", "failed"
         showStandardStreams true
     }
+    reports.html.destination = file("${reporting.baseDir}/${name}")
 }
-
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 task testJar(type: ShadowJar) {
     classifier = 'tests'
@@ -62,8 +83,14 @@ task testJar(type: ShadowJar) {
     configurations = [project.configurations.testRuntime]
 }
 
+task performanceTest(type: Test) {
+    testClassesDir = sourceSets.performanceTest.output.classesDir
+    classpath = sourceSets.performanceTest.runtimeClasspath
+    outputs.upToDateWhen { false }
+}
+
 task wrapper(type: Wrapper) {
-    gradleVersion = '4.5'
+    gradleVersion = '4.6'
 }
 
 task runDemoWebServer(type:JavaExec) {
@@ -75,4 +102,5 @@ task runDemoEventProcessor(type: JavaExec) {
     main = "org.exaspace.kafkawait.demo.CalculatorEventProcessor"
     classpath = sourceSets.test.runtimeClasspath
 }
+
 

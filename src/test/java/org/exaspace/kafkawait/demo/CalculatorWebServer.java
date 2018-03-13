@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -49,12 +50,16 @@ public class CalculatorWebServer {
         );
     }
 
-    public void run() throws Exception {
-        Server server = new Server(HTTP_LISTEN_PORT);
+    public void run()  {
+        Server server = new Server(new InetSocketAddress(HTTP_LISTEN_HOST, HTTP_LISTEN_PORT));
         server.setHandler(new JettyRequestHandler());
-        server.start();
-        LOG.info("Started jetty web server on port " + HTTP_LISTEN_PORT);
-        server.join();
+        try {
+            server.start();
+            LOG.info("Started jetty web server on port " + HTTP_LISTEN_PORT);
+            server.join();
+        } catch(Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private class JettyRequestHandler extends AbstractHandler {
@@ -65,12 +70,15 @@ public class CalculatorWebServer {
                            HttpServletRequest req,
                            HttpServletResponse res) throws IOException {
             res.setContentType("text/plain");
-            res.setStatus(HttpServletResponse.SC_OK);
             if ("/multiply".equals(target)) {
                 Map<String, String> params = parseQueryString(req.getQueryString());
-                String responseBody = handleWebRequest(req.getRequestURI(), params);
-                res.getWriter().println(responseBody);
+                WebResponse webResponse = handleWebRequest(req.getRequestURI(), params);
+                res.setStatus(webResponse.code);
+                res.getWriter().println(webResponse.body);
                 baseRequest.setHandled(true);
+            }
+            else {
+                res.setStatus(HttpServletResponse.SC_NOT_FOUND);
             }
         }
 
@@ -100,7 +108,17 @@ public class CalculatorWebServer {
         return msg.messageId;
     }
 
-    private String handleWebRequest(String requestUri, Map<String, String> queryParams) {
+    static class WebResponse {
+        private final int code;
+        private final String body;
+
+        WebResponse(final int code, final String body) {
+            this.code = code;
+            this.body = body;
+        }
+    }
+
+    private WebResponse handleWebRequest(String requestUri, Map<String, String> queryParams) {
 
         Long id = requestId.incrementAndGet();
 
@@ -113,7 +131,7 @@ public class CalculatorWebServer {
         cm.args = Arrays.asList(x, y);
         String requestJson = cm.toJson();
 
-        LOG.info("uri={} id={} request={}", requestUri, id, requestJson);
+        LOG.debug("handleWebRequest uri={} id={}. Sending kafka request={}", requestUri, id, requestJson);
 
         /*
          * Submit this web request for processing in our Kafka based back end service.
@@ -126,14 +144,22 @@ public class CalculatorWebServer {
              * will fail this future automatically for us after the timeout we passed to the KafkaWait constructor
              */
             String responseString = responseFuture.get().value();
-            return CalculatorMessage.fromJson(responseString).result.toString() + "\n";
+            final CalculatorMessage responseMessage = CalculatorMessage.fromJson(responseString);
+            return new WebResponse(HttpServletResponse.SC_OK, responseMessage.result.toString() + "\n");
         } catch (Exception e) {
-            if (e.getCause() instanceof TimeoutException) return "timeout - maybe event processor not running!\n";
-            else return e.getMessage();
+            final String msg;
+            if (e.getCause() instanceof TimeoutException) {
+                msg = "TIMEOUT id=" + id + ". Event processor not running?\n";
+            }
+            else {
+                msg = e.getMessage();
+            }
+            LOG.warn("Returning error for id={} msg={}", id, msg);
+            return new WebResponse(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, msg);
         }
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         new CalculatorWebServer().run();
     }
 }

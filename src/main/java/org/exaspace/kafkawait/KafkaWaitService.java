@@ -23,10 +23,10 @@ import java.util.concurrent.*;
 /**
  * Threadsafe utility which provides a simple high level method call interface on top of asynchronous Kafka
  * message processing, using a KafkaWait instance internally to track message IDs.
- *
+ * <p>
  * This service handles messaging using its own Kafka consumer and producer - if you want more control
  * then use KafkaWait directly.
- *
+ * <p>
  * Clients of this service are unaware of Kafka and simply call the 'processRequest' method which deals with the Kafka
  * send and receive interactions, returning a Future which ultimately captures the corresponding
  * response or times out. The service uses a Kafka producer to send the request message and a separate
@@ -36,7 +36,7 @@ import java.util.concurrent.*;
  * @param <V1> Type of the Kafka value used for the request topic
  * @param <K2> Type of the Kafka key used for the response topic
  * @param <V2> Type of the Kafka value used for the response topic
- * @param <T> Type of the ID used to match request and response messages
+ * @param <T>  Type of the ID used to match request and response messages
  */
 public class KafkaWaitService<K1, V1, K2, V2, T> {
 
@@ -54,8 +54,8 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     // Value to pass to Kafka consumer poll (of minimal importance as poll returns as soon as data is present)
     private int consumerPollTimeoutMillis = 10000;
 
-    // How long to wait for producer send() response
-    private int producerSendTimeoutMillis = 200;
+    // Maximum wait time for producer send() future to return
+    private int producerSendTimeoutMillis = 500;
 
     public KafkaWaitService(String bootstrapServers,
                             String requestTopic,
@@ -84,7 +84,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     /**
      * Send a message into Kafka and return a Future containing the response (sets the Kafka key to null).
      *
-     * @param id the ID of this request
+     * @param id    the ID of this request
      * @param value the Kafka request message value
      * @return the Future response record
      */
@@ -95,36 +95,35 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     /**
      * Send a message into Kafka and return a Future containing the response.
      *
-     * @param id The ID of this request
-     * @param key the Kafka request message key
+     * @param id    The ID of this request
+     * @param key   the Kafka request message key
      * @param value the Kafka request message value
      * @return the Future response record
      */
     public Future<ConsumerRecord<K2, V2>> processRequest(T id, K1 key, V1 value) {
         Future<ConsumerRecord<K2, V2>> res = kafkaWait.waitFor(id);
         try {
-            sendRequestMessageToKafka(key, value);
-        }
-        catch(Exception e) {
-            LOG.error(e.getMessage(), e);
+            blockingKafkaSend(key, value);
+        } catch (Exception e) {
+            LOG.error("Error publishing id={} msg={}", id, e.getMessage());
             kafkaWait.fail(id, e);
         }
         return res;
     }
 
-    public synchronized int getConsumerPollTimeoutMillis() {
+    public int getConsumerPollTimeoutMillis() {
         return consumerPollTimeoutMillis;
     }
 
-    public synchronized void setConsumerPollTimeoutMillis(final int consumerPollTimeoutMillis) {
+    public void setConsumerPollTimeoutMillis(final int consumerPollTimeoutMillis) {
         this.consumerPollTimeoutMillis = consumerPollTimeoutMillis;
     }
 
-    public synchronized int getProducerSendTimeoutMillis() {
+    public int getProducerSendTimeoutMillis() {
         return producerSendTimeoutMillis;
     }
 
-    public synchronized void setProducerSendTimeoutMillis(final int producerSendTimeoutMillis) {
+    public void setProducerSendTimeoutMillis(final int producerSendTimeoutMillis) {
         this.producerSendTimeoutMillis = producerSendTimeoutMillis;
     }
 
@@ -138,7 +137,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
         }
     }
 
-    private void sendRequestMessageToKafka(K1 key, V1 value) throws InterruptedException,
+    private void blockingKafkaSend(K1 key, V1 value) throws InterruptedException,
             ExecutionException, TimeoutException {
         producer.send(new ProducerRecord<K1, V1>(requestTopic, key, value))
                 .get(producerSendTimeoutMillis, TimeUnit.MILLISECONDS);

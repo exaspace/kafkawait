@@ -10,7 +10,7 @@
         <appender-ref ref="STDOUT" />
     </logger>
 
-    <logger name="org.exaspace" level="DEBUG" additivity="false">
+    <logger name="org.exaspace" level="INFO" additivity="false">
         <appender-ref ref="STDOUT" />
     </logger>
 

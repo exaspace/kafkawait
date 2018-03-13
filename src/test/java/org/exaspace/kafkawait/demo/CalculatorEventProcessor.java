@@ -32,27 +32,27 @@ public class CalculatorEventProcessor {
     private final KafkaConsumer<String, String> consumer;
     private final KafkaProducer<String, String> producer;
 
-    public CalculatorEventProcessor() throws Exception {
+    public CalculatorEventProcessor() {
         consumer = newKafkaConsumer();
         producer = newKafkaProducer();
     }
 
     public void run() {
 
-        LOG.info("starting event processor");
+        LOG.info("Starting event processor kafka={}", KAFKA_BOOTSTRAP_SERVER);
 
         consumer.subscribe(Arrays.asList(KAFKA_REQUEST_TOPIC));
 
         while (true) {
             ConsumerRecords<String, String> recs = consumer.poll(10000);
             for (ConsumerRecord<String, String> record : recs.records(KAFKA_REQUEST_TOPIC)) {
-                String outputJson = processMessage(record.value());
-                publish(outputJson);
+                CalculatorMessage output = processMessage(record.value());
+                publish(output);
             }
         }
     }
 
-    private String processMessage(String json) {
+    private CalculatorMessage processMessage(String json) {
         try {
             CalculatorMessage cm = CalculatorMessage.fromJson(json);
             switch(cm.operation) {
@@ -60,21 +60,22 @@ public class CalculatorEventProcessor {
                     cm.result = cm.args.get(0) * cm.args.get(1);
                     break;
             }
-            return cm.toJson();
+            return cm;
         }
         catch (Exception e) {
             CalculatorMessage cm = new CalculatorMessage();
             cm.isError = true;
-            return cm.toJson();
+            return cm;
         }
     }
 
-    private void publish(String message) {
+    private void publish(CalculatorMessage message) {
         try {
-            ProducerRecord<String, String> pr = new ProducerRecord<>(KAFKA_RESPONSE_TOPIC, message);
-            producer.send(pr).get(100, TimeUnit.MILLISECONDS);
+            LOG.debug("sending response to kafka: {}", message.messageId);
+            ProducerRecord<String, String> pr = new ProducerRecord<>(KAFKA_RESPONSE_TOPIC, message.toJson());
+            producer.send(pr).get(200, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
-            LOG.info("error sending response to kafka: " + e.getMessage());
+            LOG.error("Publish error! {} id={}. Continuing...", e.getMessage(), message.messageId, e);
         }
     }
 
@@ -93,7 +94,7 @@ public class CalculatorEventProcessor {
         return new KafkaProducer<>(producerProps, new StringSerializer(), new StringSerializer());
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         new CalculatorEventProcessor().run();
     }
 }
