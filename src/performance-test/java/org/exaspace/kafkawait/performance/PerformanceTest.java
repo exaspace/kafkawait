@@ -34,11 +34,10 @@ public class PerformanceTest {
     private static final Logger LOG = LoggerFactory.getLogger(PerformanceTest.class);
 
     private static final int INITIAL_WAIT_MS = 10000;
-    private static final int KAFKA_PORT = 19092;
     private static final int CALCULATOR_WEBSERVER_PORT = 18000;
 
     @Rule
-    public KafkaJunitRule kafkaRule = new KafkaJunitRule(EphemeralKafkaBroker.create(KAFKA_PORT));
+    public KafkaJunitRule kafkaRule = new KafkaJunitRule(EphemeralKafkaBroker.create());
 
     @Test
     public void testWebPerformance() {
