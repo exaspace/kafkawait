@@ -9,10 +9,8 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.*;
 
 
@@ -41,10 +39,10 @@ public class CalculatorEventProcessor {
 
         LOG.info("Starting event processor kafka={}", KAFKA_BOOTSTRAP_SERVER);
 
-        consumer.subscribe(Arrays.asList(KAFKA_REQUEST_TOPIC));
-
+        consumer.subscribe(Collections.singletonList(KAFKA_REQUEST_TOPIC));
+        Duration consumerPollTimeout = Duration.ofSeconds(10);
         while (true) {
-            ConsumerRecords<String, String> recs = consumer.poll(10000);
+            ConsumerRecords<String, String> recs = consumer.poll(consumerPollTimeout);
             for (ConsumerRecord<String, String> record : recs.records(KAFKA_REQUEST_TOPIC)) {
                 CalculatorMessage output = processMessage(record.value());
                 publish(output);

@@ -13,10 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 
 
@@ -52,7 +49,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     // Value to pass to Kafka consumer poll (of minimal importance as poll returns as soon as data is present)
-    private int consumerPollTimeoutMillis = 10000;
+    private Duration consumerPollTimeout = Duration.ofSeconds(10);
 
     // Maximum wait time for producer send() future to return
     private int producerSendTimeoutMillis = 500;
@@ -111,12 +108,12 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
         return res;
     }
 
-    public int getConsumerPollTimeoutMillis() {
-        return consumerPollTimeoutMillis;
+    public Duration getConsumerPollTimeout() {
+        return consumerPollTimeout;
     }
 
-    public void setConsumerPollTimeoutMillis(final int consumerPollTimeoutMillis) {
-        this.consumerPollTimeoutMillis = consumerPollTimeoutMillis;
+    public void setConsumerPollTimeout(final Duration consumerPollTimeout) {
+        this.consumerPollTimeout = consumerPollTimeout;
     }
 
     public int getProducerSendTimeoutMillis() {
@@ -128,9 +125,9 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     }
 
     private void listenForKafkaResponses() {
-        consumer.subscribe(Arrays.asList(responseTopic));
+        consumer.subscribe(Collections.singletonList(responseTopic));
         while (true) {
-            ConsumerRecords<K2, V2> recs = consumer.poll(consumerPollTimeoutMillis);
+            ConsumerRecords<K2, V2> recs = consumer.poll(consumerPollTimeout);
             for (ConsumerRecord<K2, V2> record : recs.records(responseTopic)) {
                 kafkaWait.onMessage(record);
             }
@@ -139,7 +136,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
 
     private void blockingKafkaSend(K1 key, V1 value) throws InterruptedException,
             ExecutionException, TimeoutException {
-        producer.send(new ProducerRecord<K1, V1>(requestTopic, key, value))
+        producer.send(new ProducerRecord<>(requestTopic, key, value))
                 .get(producerSendTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 

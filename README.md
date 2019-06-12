@@ -34,26 +34,30 @@ that can be used for matching requests to responses) and your desired timeout va
 
 The test source tree contains a simple demo Calculator application made up of two services:
 
-* a front end web service (CalculatorWebServer)
-* a back end service (CalculatorEventProcessor)
+* a front end API service (CalculatorWebServer)
+* a back end (Kafka consuming & producing) service (CalculatorEventProcessor)
 
-To run the demo
+To run the demo, first build the artifacts and start Kafka and Zookeeper via docker compose:
 
     ./gradlew clean jar testJar
     docker-compose up -d
 
-(If you don't have docker, you'll need to have a Kafka server running, and then you can start the demo services 
+(If you don't have docker, you'll need to have your own Kafka server running, and then just start the demo services 
 with `./gradlew runDemoEventProcessor` and `./gradlew runDemoWebServer`. If your Kafka is running somewhere other than
-localhost, you can set the host name using system property KAFKA_HOST)
+localhost, you can set the host name for it using the system property KAFKA_HOST)
 
-Test it out (you should see 42 returned in the HTTP body)
+Test out the API service (you should see 42 returned in the HTTP body)
 
 ```
 curl 'localhost:8000/multiply?x=7&y=6'
 ```
 
-In separate terminal windows, you can inspect the messages arriving on the Kafka topics:
+In separate terminal windows, you can view the messages arriving on the Kafka topics:
 
+    docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic requests
+    docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic responses
+    
+    # or if you have kafkacat installed (NB add `127.0.0.1 kafka` to your hosts file if running kafka in docker)
     kafkacat -C -b localhost:9092 -t requests 
     kafkacat -C -b localhost:9092 -t responses 
  
@@ -62,8 +66,8 @@ and this ID is passed in the JSON request & response Kafka messages.
 
 The performance of the demo is around 700 messages per second on a MacBook Air.
 
-If you stop the event processor but leave the web server running, you'll see HTTP requests are timed out after the configured
-1 second KafkaWait timeout.
+If you stop the event processor but leave the web server running, you'll see the desired behaviour: HTTP requests are 
+timed out after the configured 1 second KafkaWait timeout (this timeout is set in MAX_WAIT_TIME in the demo server, CalculatorWebServer.java).
 
 
 ## General notes on synchronous request-response interactions on top of Kafka
