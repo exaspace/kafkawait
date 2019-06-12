@@ -2,8 +2,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id 'java'
-    id 'pl.allegro.tech.build.axion-release' version '1.8.3'
-    id 'com.github.johnrengelman.shadow' version '2.0.2'
+    id 'pl.allegro.tech.build.axion-release' version '1.10.1'
+    id 'com.github.johnrengelman.shadow' version '5.0.0'
 }
 
 description = 'Kafka Wait'
@@ -29,18 +29,18 @@ configurations {
 }
 
 dependencies {
-    compile 'org.apache.kafka:kafka-clients:1.0.1'
-    compile 'org.slf4j:slf4j-api:1.7.25'
+    compile 'org.apache.kafka:kafka-clients:2.2.1'
+    compile 'org.slf4j:slf4j-api:1.7.26'
 
     runtime 'ch.qos.logback:logback-classic:1.2.3'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.hamcrest:hamcrest-all:1.3'
-    testCompile 'com.github.charithe:kafka-junit:4.1.0'
-    testCompile 'org.eclipse.jetty:jetty-server:9.4.6.v20170531'
-    testCompile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
-    performanceTestCompile 'org.apache.httpcomponents:httpasyncclient:4.1.3'
+    testCompile 'com.github.charithe:kafka-junit:4.1.5'
+    testCompile 'org.eclipse.jetty:jetty-server:9.4.18.v20190429'
+    testCompile 'com.fasterxml.jackson.core:jackson-databind:2.9.9'
 
+    performanceTestCompile 'org.apache.httpcomponents:httpasyncclient:4.1.3'
 }
 
 scmVersion {
@@ -87,10 +87,6 @@ task performanceTest(type: Test) {
     testClassesDirs = sourceSets.performanceTest.output.classesDirs
     classpath = sourceSets.performanceTest.runtimeClasspath
     outputs.upToDateWhen { false }
-}
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.6'
 }
 
 task runDemoWebServer(type:JavaExec) {
