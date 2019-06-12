@@ -12,25 +12,40 @@ result of this computation to arrive on some "response" Kafka topic, using this 
 
 ## Usage (high level API):
 
-If you want a high level abstraction, use the `KafkaWaitService` class which handles the Kafka send and receive messaging for you.
+If you want a high level abstraction, use the `KafkaWaitService` class which handles the Kafka send and receive messaging for you
+(you pass in the request and response Kafka topic names and other parameters when creating the service).
 
 ```
+  // Publish to Kafka request topic and await a response on a response topic
+  // The `id` is a unique ID you supply for each message, and `messageValue` is the body of the message.
+  
   Future<ConsumerRecord<...>> responseFuture = kafkaWaitService.processRequest(id, messageValue);
 ```
 
 
+
+You get the response body with `responseFuture.get().value()`.
+
+
 ## Usage (low level API):
 
-* create a `KafkaWait` instance giving an `IdExtractor` (this is where you extract some form of ID from your messages 
-that can be used for matching requests to responses) and your desired timeout value
-* create your KafkaConsumer (however you like) and configure it to call `kafkaWait.onMessage` on every record it receives 
-    (you'll likely start a thread for this task)
-* every time you publish a Kafka "request" event that you expect to eventually receive a matching response event for, call `kafkawait.waitFor(id)`
-* this returns you a future which you can block on when you are ready to wait (the future will be timed out after your 
-    configured timeout if no message is received)
+If you want more control, you'll manage the Kafka publishing and consuming yourself, and just use `KafkaWait` to keep track of the
+ cache of message IDs.
+
+1. In your application you create a `KafkaWait` instance supplying:
+ 
+ * an `IdExtractor` (this is where you extract some form of ID from your messages 
+that will be used for matching the correct Kafka response message to the Kafka request message) 
+ * your desired timeout value 
+ 
+2. After you publish a request to Kafka with a given `id`, call `waitFor(id)` on the `KafkaWait` instance. 
+This returns you a future which you can block on and will be timed out if no response consumed within your configured timeout.
+
+3. In your Kafka consumer thread, call `kafkaWait.onMessage` for each Kafka record you receive (your consumer most likely won't
+need to do anything more than that).
 
 
-## Demo
+## Demonstration Application
 
 The test source tree contains a simple demo Calculator application made up of two services:
 
