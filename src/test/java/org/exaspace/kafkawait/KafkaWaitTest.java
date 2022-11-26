@@ -10,8 +10,7 @@ import java.util.concurrent.TimeoutException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
-
+import static org.hamcrest.MatcherAssert.assertThat;
 
 public class KafkaWaitTest {
 

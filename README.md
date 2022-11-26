@@ -1,6 +1,6 @@
 # KafkaWait
 
-[![Build Status](https://travis-ci.org/exaspace/kafkawait.svg?branch=master)](https://travis-ci.org/exaspace/kafkawait)
+[![Tests](https://github.com/exaspace/kafkawait/actions/workflows/main.yml/badge.svg)](https://github.com/exaspace/kafkawait/actions/workflows/main.yml)
 
 Tiny Java library to provide synchronous request-response behaviour on top of Kafka for applications that must 
 publish a Kafka "request" message and then await a Kafka "response" message.
@@ -55,7 +55,7 @@ The test source tree contains a simple demo Calculator application made up of tw
 To run the demo, first build the artifacts and start Kafka and Zookeeper via docker compose:
 
     ./gradlew clean jar testJar
-    docker-compose up -d
+    docker compose up -d
 
 (If you don't have docker, you'll need to have your own Kafka server running, and then just start the demo services 
 with `./gradlew runDemoEventProcessor` and `./gradlew runDemoWebServer`. If your Kafka is running somewhere other than
@@ -69,12 +69,12 @@ curl 'localhost:8000/multiply?x=7&y=6'
 
 In separate terminal windows, you can view the messages arriving on the Kafka topics:
 
-    docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic requests
-    docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic responses
+    docker compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic requests
+    docker compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic responses
     
     # or if you have kafkacat installed (NB add `127.0.0.1 kafka` to your hosts file if running kafka in docker)
-    kafkacat -C -b localhost:9092 -t requests 
-    kafkacat -C -b localhost:9092 -t responses 
+    kcat -C -b localhost:9092 -t requests 
+    kcat -C -b localhost:9092 -t responses 
  
 The Calculator web server simply increments a global request counter to allocate each HTTP request a unique request ID,
 and this ID is passed in the JSON request & response Kafka messages.

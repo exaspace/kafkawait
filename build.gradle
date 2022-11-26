@@ -29,11 +29,12 @@ configurations {
 }
 
 dependencies {
-    implementation 'org.apache.kafka:kafka-clients:2.2.1'
-    implementation 'org.slf4j:slf4j-api:1.7.26'
+    implementation 'org.apache.kafka:kafka-clients:3.3.1'
+    implementation 'org.slf4j:slf4j-api:2.0.5'
 
     runtimeOnly 'ch.qos.logback:logback-classic:1.2.3'
-
+    
+    testImplementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
     testImplementation 'junit:junit:4.13'
     testImplementation 'com.github.charithe:kafka-junit:4.2.3'
@@ -80,7 +81,7 @@ tasks.withType(Test) {
 task testJar(type: ShadowJar) {
     classifier = 'tests'
     from sourceSets.test.output
-    configurations = [project.configurations.testRuntime]
+    configurations = [project.configurations.testCompileClasspath]
 }
 
 task performanceTest(type: Test) {
