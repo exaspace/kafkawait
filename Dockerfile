@@ -1,6 +1,4 @@
-FROM openjdk:12.0.1-jdk
-
-USER daemon
+FROM eclipse-temurin:18
 
 COPY build/libs/*jar /kafkawait/
 
