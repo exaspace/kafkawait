@@ -11,8 +11,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
  * @param <T> Type of the ID to be extracted from the ConsumerRecord
  */
 @FunctionalInterface
-public interface IdExtractor<K,V,T> {
+public interface IdExtractor<K, V, T> {
 
-    public T extractId(ConsumerRecord<K,V> consumerRecord);
+    T extractId(ConsumerRecord<K, V> consumerRecord);
 
 }

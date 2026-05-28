@@ -2,7 +2,6 @@ package org.exaspace.kafkawait.performance;
 
 import com.github.charithe.kafka.EphemeralKafkaBroker;
 import com.github.charithe.kafka.KafkaJunitRule;
-import com.google.common.collect.Iterables;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
@@ -29,7 +28,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-
 public class PerformanceTest {
     private static final Logger LOG = LoggerFactory.getLogger(PerformanceTest.class);
 
@@ -41,14 +39,13 @@ public class PerformanceTest {
 
     @Test
     public void testWebPerformance() {
-
-        int brokerPort = kafkaRule.helper().kafkaPort();
+        var brokerPort = kafkaRule.helper().kafkaPort();
         System.setProperty("KAFKA_PORT", String.valueOf(brokerPort));
         System.setProperty("HTTP_LISTEN_PORT", String.valueOf(CALCULATOR_WEBSERVER_PORT));
         LOG.info("Started Kafka on port {}", brokerPort);
 
-        ScheduledExecutorService webserverScheduler = Executors.newSingleThreadScheduledExecutor();
-        ScheduledExecutorService processorScheduler = Executors.newSingleThreadScheduledExecutor();
+        var webserverScheduler = Executors.newSingleThreadScheduledExecutor();
+        var processorScheduler = Executors.newSingleThreadScheduledExecutor();
         try {
             webserverScheduler.submit(() -> new CalculatorWebServer().run());
             processorScheduler.submit(() -> new CalculatorEventProcessor().run());
@@ -58,7 +55,6 @@ public class PerformanceTest {
             LOG.info("...hopefully web server is available");
 
             runTests();
-
         } finally {
             processorScheduler.shutdown();
             webserverScheduler.shutdown();
@@ -66,36 +62,35 @@ public class PerformanceTest {
     }
 
     void runTests() {
-
-        final List<Multiplication> dataSet = generateDataSet(1000);
-        List<BatchDefinition<List<Multiplication>>> batches = Arrays.asList(
+        var dataSet = generateDataSet(1000);
+        var batches = Arrays.asList(
                 new BatchDefinition<>(100, 100, 10, dataSet),
                 new BatchDefinition<>(5000, 5000, 0, dataSet),
                 new BatchDefinition<>(5000, 0, 0, dataSet)
         );
-        List<BatchResult> results = new ArrayList<>(batches.size());
-        for (BatchDefinition<List<Multiplication>> batch : batches) {
-            LOG.info("Submitting batch of {} requests", batch.numRequests);
-            BatchResult result = submitRequests(batch);
-            Stats stats = new Stats(batch, result);
+        var results = new ArrayList<BatchResult>(batches.size());
+        for (var batch : batches) {
+            LOG.info("Submitting batch of {} requests", batch.numRequests());
+            var result = submitRequests(batch);
+            var stats = new Stats(batch, result);
             results.add(result);
             LOG.info("Batch finished. Requests: {} Errors: {} Mean: {}ms ({} requests per second)",
-                    stats.numRequests, result.errorCount.get(), stats.msPerRequest, stats.perSec);
+                    stats.numRequests(), result.errorCount().get(), stats.msPerRequest(), stats.perSec());
 
-            if (result.errorCount.get() > 0) {
+            if (result.errorCount().get() > 0) {
                 break;
             }
-            if (batch.postBatchSleepMillis > 0) {
-                sleep(batch.postBatchSleepMillis);
+            if (batch.postBatchSleepMillis() > 0) {
+                sleep(batch.postBatchSleepMillis());
             }
         }
-        for (BatchResult res : results) {
-            assertThat(res.errorCount.get(), equalTo(0));
+        for (var res : results) {
+            assertThat(res.errorCount().get(), equalTo(0));
         }
-        BatchDefinition<?> lastBatch = Iterables.getLast(batches);
-        BatchResult lastResult = Iterables.getLast(results);
-        Stats stats = new Stats(lastBatch, lastResult);
-        assertThat(stats.perSec, greaterThan(100.0));
+        var lastBatch = batches.get(batches.size() - 1);
+        var lastResult = results.get(results.size() - 1);
+        var stats = new Stats(lastBatch, lastResult);
+        assertThat(stats.perSec(), greaterThan(100.0));
     }
 
     private static void sleep(long ms) {
@@ -106,92 +101,63 @@ public class PerformanceTest {
         }
     }
 
-    private static class Stats<T> {
-        final int numRequests;
-        final double msPerRequest;
-        final double perSec;
-
-        Stats(BatchDefinition batch, BatchResult res) {
-            this.numRequests = batch.numRequests;
-            this.msPerRequest = res.totalTimeMillis / (double) batch.numRequests;
-            this.perSec = res.totalTimeMillis == 0 ? 0 : (batch.numRequests / (double) res.totalTimeMillis) * 1000.0;
+    private record Stats(int numRequests, double msPerRequest, double perSec) {
+        Stats(BatchDefinition<?> batch, BatchResult res) {
+            this(
+                    batch.numRequests(),
+                    res.totalTimeMillis() / (double) batch.numRequests(),
+                    res.totalTimeMillis() == 0 ? 0 : (batch.numRequests() / (double) res.totalTimeMillis()) * 1000.0
+            );
         }
     }
 
-    private static class BatchDefinition<T> {
-        final int numRequests;
-        final long postBatchSleepMillis;
-        final long interRequestSleepMillis;
-        final T dataset;
-
-        BatchDefinition(int numRequests, long postBatchSleepMillis, long interRequestSleepMillis, T dataset) {
-            this.numRequests = numRequests;
-            this.postBatchSleepMillis = postBatchSleepMillis;
-            this.interRequestSleepMillis = interRequestSleepMillis;
-            this.dataset = dataset;
-        }
+    private record BatchDefinition<T>(int numRequests, long postBatchSleepMillis, long interRequestSleepMillis, T dataset) {
     }
 
-    private static class BatchResult {
-        final AtomicInteger errorCount;
-        final long totalTimeMillis;
-
-        BatchResult(long totalTimeMillis, AtomicInteger errorCount) {
-            this.totalTimeMillis = totalTimeMillis;
-            this.errorCount = errorCount;
-        }
+    private record BatchResult(long totalTimeMillis, AtomicInteger errorCount) {
     }
 
-    private static class Multiplication {
-        final int x;
-        final int y;
-        final int res;
-
-        Multiplication(int x, int y, int res) {
-            this.x = x;
-            this.y = y;
-            this.res = res;
-        }
+    private record Multiplication(int x, int y, int res) {
     }
 
     private List<Multiplication> generateDataSet(int n) {
-        int modulus = Double.valueOf(Math.floor(Math.sqrt(Integer.MAX_VALUE))).intValue();
-        Random rand = new Random();
-        List<Multiplication> data = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            int x = rand.nextInt(modulus + 1);
-            int y = rand.nextInt(modulus + 1);
+        var modulus = (int) Math.floor(Math.sqrt(Integer.MAX_VALUE));
+        var rand = new Random();
+        var data = new ArrayList<Multiplication>(n);
+        for (var i = 0; i < n; i++) {
+            var x = rand.nextInt(modulus + 1);
+            var y = rand.nextInt(modulus + 1);
             data.add(new Multiplication(x, y, x * y));
         }
         return data;
     }
 
     private BatchResult submitRequests(BatchDefinition<List<Multiplication>> batch) {
-        RequestConfig requestConfig = RequestConfig.custom()
+        var requestConfig = RequestConfig.custom()
                 .setSocketTimeout(3000)
                 .setConnectTimeout(3000)
                 .build();
-        CloseableHttpAsyncClient httpclient = HttpAsyncClients.custom()
+        var httpclient = HttpAsyncClients.custom()
                 .setDefaultRequestConfig(requestConfig)
                 .build();
         httpclient.start();
-        AtomicInteger errorCount = new AtomicInteger(0);
-        long startTimeMs = System.currentTimeMillis();
+        var errorCount = new AtomicInteger(0);
+        var startTimeMs = System.currentTimeMillis();
         try {
-            Collection<Multiplication> data = batch.dataset;
-            CountDownLatch latch = new CountDownLatch(batch.numRequests);
-            int dataSetSize = data.size();
-            for (int i = 0; i < batch.numRequests; i++) {
-                Multiplication m = batch.dataset.get(i % dataSetSize);
-                String uri = CalculatorConfig.HTTP_URL + "/multiply?x=" + m.x + "&y=" + m.y;
-                HttpGet request = new HttpGet(uri);
+            var data = batch.dataset();
+            var latch = new CountDownLatch(batch.numRequests());
+            var dataSetSize = data.size();
+            for (var i = 0; i < batch.numRequests(); i++) {
+                var m = batch.dataset().get(i % dataSetSize);
+                var uri = CalculatorConfig.HTTP_URL + "/multiply?x=" + m.x() + "&y=" + m.y();
+                var request = new HttpGet(uri);
                 httpclient.execute(request, new FutureCallback<HttpResponse>() {
 
                     @Override
                     public void completed(final HttpResponse response) {
                         try {
-                            int code = response.getStatusLine().getStatusCode();
-                            String content = EntityUtils.toString(response.getEntity());
+                            var code = response.getStatusLine().getStatusCode();
+                            var content = EntityUtils.toString(response.getEntity());
                             if (code != 200) {
                                 errorCount.incrementAndGet();
                                 LOG.error("HTTP error received: {} {}", code, content);
@@ -217,7 +183,7 @@ public class PerformanceTest {
                     }
 
                 });
-                if (batch.interRequestSleepMillis > 0) Thread.sleep(batch.interRequestSleepMillis);
+                if (batch.interRequestSleepMillis() > 0) Thread.sleep(batch.interRequestSleepMillis());
             }
             latch.await(60, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -229,8 +195,8 @@ public class PerformanceTest {
                 throw new RuntimeException(e);
             }
         }
-        long endTimeMs = System.currentTimeMillis();
-        long duration = endTimeMs - startTimeMs;
+        var endTimeMs = System.currentTimeMillis();
+        var duration = endTimeMs - startTimeMs;
         return new BatchResult(duration, errorCount);
     }
 

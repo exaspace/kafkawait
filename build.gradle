@@ -2,11 +2,17 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id 'java'
-    id 'pl.allegro.tech.build.axion-release' version '1.14.2'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'pl.allegro.tech.build.axion-release' version '1.18.0'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 description = 'Kafka Wait'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -24,24 +30,25 @@ sourceSets {
 }
 
 configurations {
-    performanceTestCompile.extendsFrom testCompile
-    performanceTestRuntime.extendsFrom testRuntime
+    performanceTestImplementation.extendsFrom testImplementation
+    performanceTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {
-    implementation 'org.apache.kafka:kafka-clients:3.3.1'
-    implementation 'org.slf4j:slf4j-api:2.0.5'
+    implementation 'org.apache.kafka:kafka-clients:3.9.0'
+    implementation 'org.slf4j:slf4j-api:2.0.16'
 
-    runtimeOnly 'ch.qos.logback:logback-classic:1.2.3'
-    
-    testImplementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
-    testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
-    testImplementation 'junit:junit:4.13'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.junit.vintage:junit-vintage-engine:5.11.4'
+    testImplementation 'org.hamcrest:hamcrest:2.2'
+    testImplementation 'jakarta.servlet:jakarta.servlet-api:6.0.0'
     testImplementation 'com.github.charithe:kafka-junit:4.2.3'
-    testImplementation 'org.eclipse.jetty:jetty-server:11.0.12'
-    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.14.1'
+    testImplementation 'org.eclipse.jetty:jetty-server:11.0.24'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
 
-    performanceTestCompile 'org.apache.httpcomponents:httpasyncclient:4.1.5'
+    performanceTestImplementation 'org.apache.httpcomponents:httpasyncclient:4.1.5'
 }
 
 scmVersion {
@@ -51,8 +58,6 @@ scmVersion {
 }
 
 project.version = scmVersion.version
-
-sourceCompatibility = 1.8
 
 compileJava {
     options.encoding = 'UTF-8'
@@ -65,11 +70,12 @@ compileTestJava {
 }
 
 jar {
-    baseName = "$project.name"
-    version = "$project.version"
+    archiveBaseName = "$project.name"
+    archiveVersion = "$project.version"
 }
 
 tasks.withType(Test) {
+    useJUnitPlatform()
     testLogging {
         exceptionFormat "full"
         events "started", "skipped", "passed", "failed"
@@ -78,27 +84,26 @@ tasks.withType(Test) {
     reports.html.destination = file("${reporting.baseDir}/${name}")
 }
 
-task testJar(type: ShadowJar) {
-    classifier = 'tests'
+tasks.register('testJar', ShadowJar) {
+    archiveClassifier = 'tests'
     from sourceSets.test.output
     configurations = [project.configurations.testCompileClasspath]
 }
 
-task performanceTest(type: Test) {
+tasks.register('performanceTest', Test) {
     testClassesDirs = sourceSets.performanceTest.output.classesDirs
     classpath = sourceSets.performanceTest.runtimeClasspath
     outputs.upToDateWhen { false }
 }
 
-task runDemoWebServer(type:JavaExec) {
-    main = "org.exaspace.kafkawait.demo.CalculatorWebServer"
+tasks.register('runDemoWebServer', JavaExec) {
+    mainClass = "org.exaspace.kafkawait.demo.CalculatorWebServer"
     classpath = sourceSets.test.runtimeClasspath
 }
 
-task runDemoEventProcessor(type: JavaExec) {
-    main = "org.exaspace.kafkawait.demo.CalculatorEventProcessor"
+tasks.register('runDemoEventProcessor', JavaExec) {
+    mainClass = "org.exaspace.kafkawait.demo.CalculatorEventProcessor"
     classpath = sourceSets.test.runtimeClasspath
 }
 
-check.dependsOn performanceTest
 performanceTest.mustRunAfter test

@@ -35,7 +35,7 @@ import java.util.concurrent.*;
  * @param <V2> Type of the Kafka value used for the response topic
  * @param <T>  Type of the ID used to match request and response messages
  */
-public class KafkaWaitService<K1, V1, K2, V2, T> {
+public class KafkaWaitService<K1, V1, K2, V2, T> implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(KafkaWaitService.class);
 
@@ -53,6 +53,8 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
 
     // Maximum wait time for producer send() future to return
     private int producerSendTimeoutMillis = 500;
+
+    private volatile boolean running = true;
 
     public KafkaWaitService(String bootstrapServers,
                             String requestTopic,
@@ -98,7 +100,7 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
      * @return the Future response record
      */
     public Future<ConsumerRecord<K2, V2>> processRequest(T id, K1 key, V1 value) {
-        Future<ConsumerRecord<K2, V2>> res = kafkaWait.waitFor(id);
+        var res = kafkaWait.waitFor(id);
         try {
             blockingKafkaSend(key, value);
         } catch (Exception e) {
@@ -126,9 +128,9 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
 
     private void listenForKafkaResponses() {
         consumer.subscribe(Collections.singletonList(responseTopic));
-        while (true) {
-            ConsumerRecords<K2, V2> recs = consumer.poll(consumerPollTimeout);
-            for (ConsumerRecord<K2, V2> record : recs.records(responseTopic)) {
+        while (running) {
+            var recs = consumer.poll(consumerPollTimeout);
+            for (var record : recs.records(responseTopic)) {
                 kafkaWait.onMessage(record);
             }
         }
@@ -141,9 +143,9 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     }
 
     private KafkaProducer<K1, V1> newKafkaProducer(Map<String, Object> props,
-                                                   Serializer<K1> keySerializer,
-                                                   Serializer<V1> valueSerializer) {
-        Map<String, Object> defaultProducerProps = new HashMap<>();
+                                                    Serializer<K1> keySerializer,
+                                                    Serializer<V1> valueSerializer) {
+        var defaultProducerProps = new HashMap<String, Object>();
         defaultProducerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         defaultProducerProps.put(ProducerConfig.ACKS_CONFIG, "1");
 
@@ -151,9 +153,9 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
     }
 
     private KafkaConsumer<K2, V2> newKafkaConsumer(Map<String, Object> props,
-                                                   Deserializer<K2> keyDeserializer,
-                                                   Deserializer<V2> valueDeserializer) {
-        Map<String, Object> defaultConsumerProps = new HashMap<>();
+                                                    Deserializer<K2> keyDeserializer,
+                                                    Deserializer<V2> valueDeserializer) {
+        var defaultConsumerProps = new HashMap<String, Object>();
         defaultConsumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         defaultConsumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
         defaultConsumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
@@ -163,10 +165,19 @@ public class KafkaWaitService<K1, V1, K2, V2, T> {
 
     private Map<String, Object> merge(Map<String, Object> defaultProps,
                                       Map<String, Object> overrideProps) {
-        Map<String, Object> ret = new HashMap<>();
+        var ret = new HashMap<String, Object>();
         ret.putAll(defaultProps);
         ret.putAll(overrideProps);
         return ret;
+    }
+
+    @Override
+    public void close() {
+        running = false;
+        executorService.shutdownNow();
+        kafkaWait.close();
+        producer.close();
+        consumer.close();
     }
 
 }

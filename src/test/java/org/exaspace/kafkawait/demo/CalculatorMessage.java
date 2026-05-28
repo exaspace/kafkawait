@@ -5,16 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 
-
-public class CalculatorMessage {
+public record CalculatorMessage(
+        Long messageId,
+        String operation,
+        List<Integer> args,
+        Integer result,
+        boolean error
+) {
 
     private static final ObjectMapper mapper = new ObjectMapper();
-
-    public Long messageId;
-    public String operation;
-    public List<Integer> args;
-    public Integer result;
-    public boolean isError;
 
     public String toJson() {
         try {

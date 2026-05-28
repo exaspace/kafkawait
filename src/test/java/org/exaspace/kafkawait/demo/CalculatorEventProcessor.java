@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 
-
 import static org.exaspace.kafkawait.demo.CalculatorConfig.*;
 
 /**
@@ -36,15 +35,14 @@ public class CalculatorEventProcessor {
     }
 
     public void run() {
-
         LOG.info("Starting event processor kafka={}", KAFKA_BOOTSTRAP_SERVER);
 
         consumer.subscribe(Collections.singletonList(KAFKA_REQUEST_TOPIC));
-        Duration consumerPollTimeout = Duration.ofSeconds(10);
+        var consumerPollTimeout = Duration.ofSeconds(10);
         while (true) {
-            ConsumerRecords<String, String> recs = consumer.poll(consumerPollTimeout);
-            for (ConsumerRecord<String, String> record : recs.records(KAFKA_REQUEST_TOPIC)) {
-                CalculatorMessage output = processMessage(record.value());
+            var recs = consumer.poll(consumerPollTimeout);
+            for (var record : recs.records(KAFKA_REQUEST_TOPIC)) {
+                var output = processMessage(record.value());
                 publish(output);
             }
         }
@@ -52,33 +50,31 @@ public class CalculatorEventProcessor {
 
     private CalculatorMessage processMessage(String json) {
         try {
-            CalculatorMessage cm = CalculatorMessage.fromJson(json);
-            switch(cm.operation) {
-                case "multiply":
-                    cm.result = cm.args.get(0) * cm.args.get(1);
-                    break;
-            }
-            return cm;
-        }
-        catch (Exception e) {
-            CalculatorMessage cm = new CalculatorMessage();
-            cm.isError = true;
-            return cm;
+            var cm = CalculatorMessage.fromJson(json);
+            return switch (cm.operation()) {
+                case "multiply" -> new CalculatorMessage(
+                        cm.messageId(), "multiply", cm.args(),
+                        cm.args().get(0) * cm.args().get(1), false
+                );
+                default -> cm;
+            };
+        } catch (Exception e) {
+            return new CalculatorMessage(null, null, null, null, true);
         }
     }
 
     private void publish(CalculatorMessage message) {
         try {
-            LOG.debug("sending response to kafka: {}", message.messageId);
-            ProducerRecord<String, String> pr = new ProducerRecord<>(KAFKA_RESPONSE_TOPIC, message.toJson());
+            LOG.debug("sending response to kafka: {}", message.messageId());
+            var pr = new ProducerRecord<String, String>(KAFKA_RESPONSE_TOPIC, message.toJson());
             producer.send(pr).get(200, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
-            LOG.error("Publish error! {} id={}. Continuing...", e.getMessage(), message.messageId, e);
+            LOG.error("Publish error! {} id={}. Continuing...", e.getMessage(), message.messageId(), e);
         }
     }
 
     private KafkaConsumer<String, String> newKafkaConsumer() {
-        Map<String, Object> consumerProps = new HashMap<>();
+        var consumerProps = new HashMap<String, Object>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
@@ -86,7 +82,7 @@ public class CalculatorEventProcessor {
     }
 
     private KafkaProducer<String, String> newKafkaProducer() {
-        Map<String, Object> producerProps = new HashMap<>();
+        var producerProps = new HashMap<String, Object>();
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
         producerProps.put(ProducerConfig.ACKS_CONFIG, "1");
         return new KafkaProducer<>(producerProps, new StringSerializer(), new StringSerializer());

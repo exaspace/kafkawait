@@ -7,7 +7,7 @@ public class CalculatorConfig {
 
     public static final String HTTP_LISTEN_HOST = System.getProperty("HTTP_LISTEN_HOST", "0.0.0.0");
 
-    public static final int HTTP_LISTEN_PORT = Integer.valueOf(System.getProperty("HTTP_LISTEN_PORT", "8000"));
+    public static final int HTTP_LISTEN_PORT = Integer.parseInt(System.getProperty("HTTP_LISTEN_PORT", "8000"));
 
     public static final String HTTP_URL = "http://" + HTTP_LISTEN_HOST + ":" + HTTP_LISTEN_PORT;
 
@@ -18,5 +18,7 @@ public class CalculatorConfig {
 
     public static final String KAFKA_RESPONSE_TOPIC = "responses";
 
+    private CalculatorConfig() {
+    }
 
 }
