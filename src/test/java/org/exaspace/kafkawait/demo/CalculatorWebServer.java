@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
@@ -32,6 +33,7 @@ public class CalculatorWebServer {
 
     public CalculatorWebServer() {
         this.requestId = new AtomicLong(0);
+        LOG.info(" KAFKA_BOOTSTRAP_SERVER={}", KAFKA_BOOTSTRAP_SERVER);
         kafkaWaitService = new KafkaWaitService<>(
                 KAFKA_BOOTSTRAP_SERVER,
                 KAFKA_REQUEST_TOPIC,
@@ -51,8 +53,8 @@ public class CalculatorWebServer {
         var server = new Server(new InetSocketAddress(HTTP_LISTEN_HOST, HTTP_LISTEN_PORT));
         server.setHandler(new JettyRequestHandler());
         try {
+            LOG.info("Starting jetty web server on port {}", HTTP_LISTEN_PORT);
             server.start();
-            LOG.info("Started jetty web server on port " + HTTP_LISTEN_PORT);
             server.join();
         } catch (Exception e) {
             throw new RuntimeException(e);

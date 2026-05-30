@@ -1,4 +1,4 @@
-FROM eclipse-temurin:18
+FROM eclipse-temurin:17-ubi10-minimal
 
 COPY build/libs/*jar /kafkawait/
 

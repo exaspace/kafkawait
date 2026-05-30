@@ -19,9 +19,8 @@ If you want a high level abstraction, use the `KafkaWaitService` class which han
   // Publish to Kafka request topic and await a response on a response topic
   // The `id` is a unique ID you supply for each message, and `messageValue` is the body of the message.
   
-  Future<ConsumerRecord<...>> responseFuture = kafkaWaitService.processRequest(id, messageValue);
+  var responseFuture = kafkaWaitService.processRequest(id, messageValue);
 ```
-
 
 
 You get the response body with `responseFuture.get().value()`.
@@ -49,10 +48,11 @@ need to do anything more than that).
 
 The test source tree contains a simple demo Calculator application made up of two services:
 
-* a front end API service (CalculatorWebServer)
-* a back end (Kafka consuming & producing) service (CalculatorEventProcessor)
+* a front end HTTP API service (CalculatorWebServer) which publishes request messages into Kafka
+* a back end (Kafka consuming & producing) service (CalculatorEventProcessor) which consumes request messages and 
+publishes response messages
 
-To run the demo, first build the artifacts and start Kafka and Zookeeper via docker compose:
+To run the demo, first build the artifacts and start Kafka via docker compose (uses this standard Kafka image: https://hub.docker.com/r/apache/kafka):
 
     ./gradlew clean jar testJar
     docker compose up -d
@@ -69,12 +69,12 @@ curl 'localhost:8000/multiply?x=7&y=6'
 
 In separate terminal windows, you can view the messages arriving on the Kafka topics:
 
-    docker compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic requests
-    docker compose exec kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic responses
+    docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic requests
+    docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic responses
     
-    # or if you have kafkacat installed (NB add `127.0.0.1 kafka` to your hosts file if running kafka in docker)
-    kcat -C -b localhost:9092 -t requests 
-    kcat -C -b localhost:9092 -t responses 
+    # or if you have kaf installed (NB add `127.0.0.1 kafka` to your hosts file if running kafka in docker)
+    kaf consume -b localhost:9092  --output raw requests 
+    kaf consume -b localhost:9092  --output raw responses
  
 The Calculator web server simply increments a global request counter to allocate each HTTP request a unique request ID,
 and this ID is passed in the JSON request & response Kafka messages.
@@ -87,7 +87,7 @@ timed out after the configured 1 second KafkaWait timeout (this timeout is set i
 
 ## General notes on synchronous request-response interactions on top of Kafka
 
-First question if there is another way to do what you want: the asynchronous nature of event processing is part of its attraction and layering
+First question if there is another way to do what you want! The asynchronous nature of event processing is part of its attraction and layering
  synchronous behaviour on top should usually be avoided if possible. e.g. if you are building a REST API you may be able to model your API to take account of asynchronous
  interactions by returning resource locations and getting the client to poll for availability.
 
