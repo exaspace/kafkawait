@@ -4,6 +4,7 @@ on:
     # allow manual triggering
 
   schedule:
+
     # trigger every Thursday at 00:31
     - cron:  '31 0 * * 4'
   

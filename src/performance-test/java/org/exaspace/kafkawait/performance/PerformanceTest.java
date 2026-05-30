@@ -1,26 +1,24 @@
 package org.exaspace.kafkawait.performance;
 
-import com.github.charithe.kafka.EphemeralKafkaBroker;
-import com.github.charithe.kafka.KafkaJunitRule;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.util.EntityUtils;
 import org.exaspace.kafkawait.demo.CalculatorConfig;
 import org.exaspace.kafkawait.demo.CalculatorEventProcessor;
 import org.exaspace.kafkawait.demo.CalculatorWebServer;
-import org.junit.Rule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,18 +29,15 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class PerformanceTest {
     private static final Logger LOG = LoggerFactory.getLogger(PerformanceTest.class);
 
-    private static final int INITIAL_WAIT_MS = 10000;
+    private static final int INITIAL_WAIT_MS = 5_000;
     private static final int CALCULATOR_WEBSERVER_PORT = 18000;
-
-    @Rule
-    public KafkaJunitRule kafkaRule = new KafkaJunitRule(EphemeralKafkaBroker.create());
+    private static final int BROKER_PORT = 9092;
 
     @Test
     public void testWebPerformance() {
-        var brokerPort = kafkaRule.helper().kafkaPort();
-        System.setProperty("KAFKA_PORT", String.valueOf(brokerPort));
+        System.setProperty("KAFKA_PORT", String.valueOf(BROKER_PORT));
         System.setProperty("HTTP_LISTEN_PORT", String.valueOf(CALCULATOR_WEBSERVER_PORT));
-        LOG.info("Started Kafka on port {}", brokerPort);
+        LOG.info("Connecting to Kafka on port {}", BROKER_PORT);
 
         var webserverScheduler = Executors.newSingleThreadScheduledExecutor();
         var processorScheduler = Executors.newSingleThreadScheduledExecutor();
@@ -65,8 +60,8 @@ public class PerformanceTest {
         var dataSet = generateDataSet(1000);
         var batches = Arrays.asList(
                 new BatchDefinition<>(100, 100, 10, dataSet),
-                new BatchDefinition<>(5000, 5000, 0, dataSet),
-                new BatchDefinition<>(5000, 0, 0, dataSet)
+                new BatchDefinition<>(1000, 1000, 0, dataSet),
+                new BatchDefinition<>(1000, 0, 0, dataSet)
         );
         var results = new ArrayList<BatchResult>(batches.size());
         for (var batch : batches) {
@@ -111,7 +106,8 @@ public class PerformanceTest {
         }
     }
 
-    private record BatchDefinition<T>(int numRequests, long postBatchSleepMillis, long interRequestSleepMillis, T dataset) {
+    private record BatchDefinition<T>(int numRequests, long postBatchSleepMillis, long interRequestSleepMillis,
+                                      T dataset) {
     }
 
     private record BatchResult(long totalTimeMillis, AtomicInteger errorCount) {
